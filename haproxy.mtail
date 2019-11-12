@@ -1,0 +1,103 @@
+const IP /\d+(\.\d+){3}/
+const HAPROXY_PREFIX /\w+\s+\d+\s\d{2}:\d{2}:\d{2}\slocalhost\shaproxy\[\d+\]:/
+const HAPROXY_CLIENT // + IP + /:\d+/
+const HAPROXY_DATE /\[\d+\/[A-Za-z]+\/\d+:\d+:\d+:\d+.?\d*\]/
+const HAPROXY_HTTPCLIENT /(?P<client>[a-z0-9A-Z-]+)\/(?P<client_env>[a-z0-9A-Z-]+)/
+const HAPROXY_FRONTEND /(?P<frontend>[^\s]+)/
+const HAPROXY_BACKEND /(?P<partner>\w+):(?P<partner_env>\w+):(?P<partner_service>\w+):(?P<sla>\w+)\/\w+/
+const HAPROXY_DURATION /-?\d+/
+const HAPROXY_TIME /(?P<TR>/ + HAPROXY_DURATION + /)\/(?P<Tw>/ + HAPROXY_DURATION + /)\/(?P<Tc>/ + HAPROXY_DURATION +/)\/(?P<Tr>/ + HAPROXY_DURATION +/)\/(?P<Ta>/ + HAPROXY_DURATION + /)/
+const HAPROXY_STATUS_CODE /(?P<status_code>\d+)/
+const HAPROXY_BYTES_READ /(?P<bytes_read>\+?\d+)/
+const HAPROXY_CLOSE_STATE /(?P<termination>.)(?P<close_state>.)../
+const HAPROXY_STATE /\d+\/\d+\/\d+\/\d+\/(?P<retries>\d+)\s+\d+\/\d+/
+const URLPARAMS /(\?.*)?/
+const METHOD /[A-Z]+/
+
+
+counter http_requests_duration_ms_sum by client, client_env, partner, partner_env, partner_service, code, sla
+counter http_requests_duration_ms_count by client, client_env, partner, partner_env, partner_service, code, sla
+counter http_requests_retries_total by client, client_env, partner, partner_env, partner_service, sla
+counter http_requests_termination_total by client, client_env, partner, partner_env, partner_service, reason, sla
+counter http_requests_state_total by client, client_env, partner, partner_env, partner_service, state, sla
+counter http_requests_aborted_total by client, client_env, partner, partner_env, partner_service, time, sla
+counter http_requests_timer_duration_ms_count by client, client_env, partner, partner_env, partner_service, time, sla
+counter http_requests_timer_duration_ms_sum by client, client_env, partner, partner_env, partner_service, time, sla
+counter bytes_read_total
+counter parsed_lines_total
+counter matched_lines_total
+
+/^/ +
+HAPROXY_PREFIX +
+/\s+/ +
+HAPROXY_CLIENT +
+/\s+/ +
+HAPROXY_DATE +
+/\s+/ +
+HAPROXY_FRONTEND +
+/\s+/ +
+HAPROXY_BACKEND +
+/\s+/ +
+HAPROXY_TIME +
+/\s+/ +
+HAPROXY_STATUS_CODE +
+/\s+/ +
+HAPROXY_BYTES_READ +
+/\s+-\s+-\s+/ +
+HAPROXY_CLOSE_STATE +
+/\s+/ +
+HAPROXY_STATE +
+/\s+/ +
+/"/ +
+METHOD +
+/\s+/ +
+/\// +
+HAPROXY_HTTPCLIENT +
+/\// +
+/(?P<request>.*)"/ +
+/$/ {
+    http_requests_duration_ms_count[$client][$client_env][$partner][$partner_env][$partner_service][$status_code][$sla]++
+    http_requests_duration_ms_sum[$client][$client_env][$partner][$partner_env][$partner_service][$status_code][$sla] += $Ta
+    matched_lines_total++
+    bytes_read_total += $bytes_read
+
+    http_requests_retries_total[$client][$client_env][$partner][$partner_env][$partner_service][$sla] += $retries
+
+    http_requests_termination_total[$client][$client_env][$partner][$partner_env][$partner_service][$termination][$sla]++
+    http_requests_state_total[$client][$client_env][$partner][$partner_env][$partner_service][$close_state][$sla]++
+
+    $TR >= 0 {
+        http_requests_timer_duration_ms_count[$client][$client_env][$partner][$partner_env][$partner_service]["TR"][$sla]++
+        http_requests_timer_duration_ms_sum[$client][$client_env][$partner][$partner_env][$partner_service]["TR"][$sla] += $TR
+    } else {
+        http_requests_aborted_total[$client][$client_env][$partner][$partner_env][$partner_service]["TR"][$sla]++
+    }
+    $Tw >= 0 {
+        http_requests_timer_duration_ms_count[$client][$client_env][$partner][$partner_env][$partner_service]["Tw"][$sla]++
+        http_requests_timer_duration_ms_sum[$client][$client_env][$partner][$partner_env][$partner_service]["Tw"][$sla] += $Tw
+    } else {
+        http_requests_aborted_total[$client][$client_env][$partner][$partner_env][$partner_service]["Tw"][$sla]++
+    }
+    $Tc >= 0 {
+        http_requests_timer_duration_ms_count[$client][$client_env][$partner][$partner_env][$partner_service]["Tc"][$sla]++
+        http_requests_timer_duration_ms_sum[$client][$client_env][$partner][$partner_env][$partner_service]["Tc"][$sla] += $Tc
+    } else {
+        http_requests_aborted_total[$client][$client_env][$partner][$partner_env][$partner_service]["Tc"][$sla]++
+    }
+    $Tr >= 0 {
+        http_requests_timer_duration_ms_count[$client][$client_env][$partner][$partner_env][$partner_service]["Tr"][$sla]++
+        http_requests_timer_duration_ms_sum[$client][$client_env][$partner][$partner_env][$partner_service]["Tr"][$sla] += $Tr
+    } else {
+        http_requests_aborted_total[$client][$client_env][$partner][$partner_env][$partner_service]["Tr"][$sla]++
+    }
+    $Ta >= 0 {
+        http_requests_timer_duration_ms_count[$client][$client_env][$partner][$partner_env][$partner_service]["Ta"][$sla]++
+        http_requests_timer_duration_ms_sum[$client][$client_env][$partner][$partner_env][$partner_service]["Ta"][$sla] += $Ta
+    } else {
+        http_requests_aborted_total[$client][$client_env][$partner][$partner_env][$partner_service]["Ta"][$sla]++
+    }
+}
+
+/$/ {
+    parsed_lines_total++
+}
